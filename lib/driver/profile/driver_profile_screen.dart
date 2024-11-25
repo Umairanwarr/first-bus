@@ -2,6 +2,9 @@
 
 import 'dart:io';
 
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:first_bus_project/driver/menu/driver_menu.dart';
+import 'package:first_bus_project/models/route_model.dart';
 import 'package:first_bus_project/models/user_model.dart';
 import 'package:first_bus_project/services/auth_service.dart';
 import 'package:first_bus_project/widgets/custom_button.dart';
@@ -11,7 +14,9 @@ import 'package:image_picker/image_picker.dart';
 
 class DriverProfileScreen extends StatefulWidget {
   final UserModel userModel;
-  const DriverProfileScreen({super.key, required this.userModel});
+  BusRouteModel? busRouteModel;
+ 
+ DriverProfileScreen({super.key, required this.userModel,required this.busRouteModel});
 
   @override
   State<DriverProfileScreen> createState() => _DriverProfileScreenState();
@@ -19,6 +24,7 @@ class DriverProfileScreen extends StatefulWidget {
 
 class _DriverProfileScreenState extends State<DriverProfileScreen> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  FirebaseAuth auth = FirebaseAuth.instance;
   late TextEditingController _nameConroller;
   late TextEditingController _phoneController;
   late TextEditingController _emailController;
@@ -26,7 +32,6 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
   late TextEditingController _busColorController;
   final AuthService _authService = AuthService();
   File? _profileImage;
-  File? _licenseImage;
 
   @override
   void initState() {
@@ -63,74 +68,14 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
     }
   }
 
-  Future<void> _pickLicenseImage(ImageSource source) async {
-    final picker = ImagePicker();
-    final pickedImage = await picker.pickImage(source: source);
-    if (pickedImage != null) {
-      setState(() {
-        _licenseImage = File(pickedImage.path);
-      });
-      Navigator.of(context).pop();
-    }
-  }
-
   void _updateData({required UserModel user}) async {
     if (_formKey.currentState!.validate()) {
       _authService.updateUserRecord(
         updatedUser: user,
         context: context,
         newProfileImage: _profileImage,
-        newLicenseImage: _licenseImage, // Pass license image here
       );
     }
-  }
-
-  void _showLicenseImagePicker() {
-    showModalBottomSheet(
-      context: context,
-      builder: (BuildContext context) {
-        return SizedBox(
-          height: MediaQuery.of(context).size.height * 0.22,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              GestureDetector(
-                onTap: () {
-                  _pickLicenseImage(ImageSource.gallery);
-                },
-                child: SizedBox(
-                  height: 50,
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.photo_library),
-                      SizedBox(width: 10),
-                      Text('Select License from Gallery'),
-                    ],
-                  ),
-                ),
-              ),
-              GestureDetector(
-                onTap: () {
-                  _pickLicenseImage(ImageSource.camera);
-                },
-                child: SizedBox(
-                  height: 50,
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.camera_alt),
-                      SizedBox(width: 10),
-                      Text('Capture License with Camera'),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
   }
 
   @override
@@ -152,9 +97,15 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
                   alignment: Alignment.topLeft,
                   child: IconButton(
                     onPressed: () {
-                      if (Navigator.canPop(context)) {
-                        Navigator.pop(context);
-                      }
+                      Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => DriverMenuScreen(
+                      userId: auth.currentUser!.uid,
+                      busRouteModel: widget.busRouteModel,
+                    ),
+                  ),
+                );
                     },
                     icon: Icon(
                       Icons.arrow_back_ios,
@@ -353,28 +304,6 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
                     return null;
                   },
                 ),
-                SizedBox(height: screenHeight * 0.025),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton.icon(
-                    onPressed: _showLicenseImagePicker,
-                    icon: const Icon(Icons.upload_file),
-                    label: const Text('Upload License Image'),
-                  ),
-                ),
-                if (_licenseImage != null)
-                  Container(
-                    width: screenWidth * 0.8,
-                    height: screenHeight * 0.25,
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Image.file(
-                      _licenseImage!,
-                      fit: BoxFit.cover,
-                    ),
-                  ),
                 SizedBox(height: screenHeight * 0.025),
                 CustomButton(
                   onTap: () {

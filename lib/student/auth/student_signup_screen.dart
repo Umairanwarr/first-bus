@@ -7,6 +7,41 @@ import 'package:first_bus_project/widgets/custom_textfield.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
+class ValidationIndicator extends StatelessWidget {
+  final bool isValid;
+  final String text;
+
+  const ValidationIndicator({
+    Key? key,
+    required this.isValid,
+    required this.text,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2.0),
+      child: Row(
+        children: [
+          Icon(
+            isValid ? Icons.check_circle : Icons.circle_outlined,
+            size: 16,
+            color: isValid ? Colors.green : Colors.grey,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            text,
+            style: TextStyle(
+              color: isValid ? Colors.green : Colors.grey,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class StudentSignUpScreen extends StatefulWidget {
   const StudentSignUpScreen({super.key});
 
@@ -22,8 +57,12 @@ class _StudentSignUpScreenState extends State<StudentSignUpScreen> {
   late TextEditingController _confirmPasswordController;
   String _selectedUniversity = 'Comsats Wah';
   final AuthService _authService = AuthService();
-  bool _showPassword = false;
   bool _isLoading = false;
+  bool _showPassword = false;
+  bool _hasUpperCase = false;
+  bool _hasSpecialChar = false;
+  bool _hasNumber = false;
+  bool _hasMinLength = false;
 
   @override
   void initState() {
@@ -43,15 +82,25 @@ class _StudentSignUpScreenState extends State<StudentSignUpScreen> {
     super.dispose();
   }
 
+  void _validatePassword(String value) {
+    setState(() {
+      _hasUpperCase = value.contains(RegExp(r'[A-Z]'));
+      _hasSpecialChar = value.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]'));
+      _hasNumber = value.contains(RegExp(r'[0-9]'));
+      _hasMinLength = value.length >= 8;
+    });
+  }
+
   void _signUp({
-    required name,
-    required email,
-    required password,
+    required String name,
+    required String email,
+    required String password,
   }) async {
     if (_formKey.currentState!.validate()) {
       setState(() {
         _isLoading = true;
       });
+
       if (_passwordController.text == _confirmPasswordController.text) {
         await _authService.signUp(
           context: context,
@@ -64,11 +113,13 @@ class _StudentSignUpScreenState extends State<StudentSignUpScreen> {
           password: password,
           selectedUniversity: _selectedUniversity,
           profileImage: '',
+          licenseImage: null,
         );
 
         setState(() {
           _isLoading = false;
         });
+
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
@@ -85,23 +136,21 @@ class _StudentSignUpScreenState extends State<StudentSignUpScreen> {
           ),
         );
       }
-      setState(() {
-        _isLoading = false;
-      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final screenHeight = MediaQuery.of(context).size.height;
     final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: SingleChildScrollView(
         child: Padding(
           padding: EdgeInsets.symmetric(
             horizontal: screenWidth * 0.05,
-            vertical: screenHeight * 0.02,
+            vertical: screenHeight * 0.03,
           ),
           child: Form(
             key: _formKey,
@@ -124,7 +173,7 @@ class _StudentSignUpScreenState extends State<StudentSignUpScreen> {
                 ),
                 SizedBox(height: screenHeight * 0.04),
                 Text(
-                  "Welcome Student!",
+                  "Welcome Student",
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: screenHeight * 0.04,
@@ -134,7 +183,7 @@ class _StudentSignUpScreenState extends State<StudentSignUpScreen> {
                   mainAxisAlignment: MainAxisAlignment.start,
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    SizedBox(height: screenHeight * 0.025),
+                    SizedBox(height: screenHeight * 0.03),
                     CustomFields(
                       icon: const Icon(
                         Icons.person,
@@ -177,9 +226,7 @@ class _StudentSignUpScreenState extends State<StudentSignUpScreen> {
                     CustomFields(
                       icon: IconButton(
                         icon: Icon(
-                          _showPassword
-                              ? Icons.visibility
-                              : Icons.visibility_off,
+                          _showPassword ? Icons.visibility : Icons.visibility_off,
                         ),
                         onPressed: () {
                           setState(() {
@@ -191,20 +238,50 @@ class _StudentSignUpScreenState extends State<StudentSignUpScreen> {
                       controller: _passwordController,
                       keyboardType: TextInputType.visiblePassword,
                       text: 'Password',
+                      onChanged: _validatePassword,
                       validator: (value) {
                         if (value!.isEmpty) {
                           return 'Please enter your password';
                         }
+                        if (!_hasUpperCase ||
+                            !_hasSpecialChar ||
+                            !_hasNumber ||
+                            !_hasMinLength) {
+                          return 'Please meet all password requirements';
+                        }
                         return null;
                       },
+                    ),
+                    SizedBox(height: 10),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          ValidationIndicator(
+                            isValid: _hasMinLength,
+                            text: 'At least 8 characters',
+                          ),
+                          ValidationIndicator(
+                            isValid: _hasUpperCase,
+                            text: 'At least one uppercase letter',
+                          ),
+                          ValidationIndicator(
+                            isValid: _hasNumber,
+                            text: 'At least one number',
+                          ),
+                          ValidationIndicator(
+                            isValid: _hasSpecialChar,
+                            text: 'At least one special character',
+                          ),
+                        ],
+                      ),
                     ),
                     SizedBox(height: screenHeight * 0.025),
                     CustomFields(
                       icon: IconButton(
                         icon: Icon(
-                          _showPassword
-                              ? Icons.visibility
-                              : Icons.visibility_off,
+                          _showPassword ? Icons.visibility : Icons.visibility_off,
                         ),
                         onPressed: () {
                           setState(() {
@@ -215,10 +292,10 @@ class _StudentSignUpScreenState extends State<StudentSignUpScreen> {
                       isPassword: !_showPassword,
                       controller: _confirmPasswordController,
                       keyboardType: TextInputType.visiblePassword,
-                      text: 'Password',
+                      text: 'Confirm Password',
                       validator: (value) {
                         if (value!.isEmpty) {
-                          return 'Please enter your password';
+                          return 'Please confirm your password';
                         }
                         return null;
                       },
@@ -241,7 +318,6 @@ class _StudentSignUpScreenState extends State<StudentSignUpScreen> {
                         color: Colors.black,
                         fontSize: screenWidth * 0.04,
                       ),
-                      // dropdownColor: const Color(0XFF800080),
                       decoration: InputDecoration(
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.all(
@@ -254,9 +330,7 @@ class _StudentSignUpScreenState extends State<StudentSignUpScreen> {
                         ),
                       ),
                     ),
-                    SizedBox(
-                      height: screenHeight * 0.04,
-                    ),
+                    SizedBox(height: screenHeight * 0.05),
                     _isLoading
                         ? const CircularProgressIndicator()
                         : CustomButton(
@@ -269,7 +343,7 @@ class _StudentSignUpScreenState extends State<StudentSignUpScreen> {
                             },
                             text: 'Sign Up',
                           ),
-                    SizedBox(height: screenHeight * 0.08),
+                    SizedBox(height: screenHeight * 0.05),
                     Align(
                       alignment: Alignment.center,
                       child: Text.rich(
@@ -293,8 +367,7 @@ class _StudentSignUpScreenState extends State<StudentSignUpScreen> {
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (_) =>
-                                          const StudentSignInScreen(),
+                                      builder: (_) => const StudentSignInScreen(),
                                     ),
                                   );
                                 },

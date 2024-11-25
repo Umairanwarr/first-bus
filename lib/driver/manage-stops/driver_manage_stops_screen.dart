@@ -4,19 +4,17 @@ import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:first_bus_project/driver/home/driver_map_screen.dart';
+import 'package:first_bus_project/driver/menu/driver_menu.dart';
 import 'package:first_bus_project/models/route_model.dart';
 import 'package:first_bus_project/models/user_model.dart';
-import 'package:first_bus_project/services/auth_service.dart';
-import 'package:first_bus_project/splash_screen.dart';
 import 'package:first_bus_project/widgets/custom_button.dart';
 import 'package:first_bus_project/widgets/custom_textfield.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:geocoding/geocoding.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 
 class DriverManageStops extends StatefulWidget {
@@ -40,8 +38,10 @@ class _DriverManageStopsState extends State<DriverManageStops> {
   late TextEditingController _endLocationController;
   late TextEditingController _totalStopsController;
   late TextEditingController _startTimeController;
+  FirebaseAuth auth = FirebaseAuth.instance;
   LatLng? pickup;
   BusRouteModel? bus;
+  String id = "";
   LatLng? destination;
   LatLng? stop;
   Marker? pickupMarker;
@@ -54,7 +54,7 @@ class _DriverManageStopsState extends State<DriverManageStops> {
   List<LatLng> allcords = [];
   LatLng? currentLocation;
   GoogleMapController? mapController;
-
+Random r = new Random();
   List<LatLng> polylineCoordinates = [];
 
   List<TextEditingController> _stopNameControllers = [];
@@ -63,6 +63,7 @@ class _DriverManageStopsState extends State<DriverManageStops> {
   int totalStops = 0;
   @override
   void initState() {
+    id = r.nextInt(256).toString();
     if (widget.busRouteModel != null) {
       pickup = widget.busRouteModel!.startCords;
       destination = widget.busRouteModel!.endCords;
@@ -89,7 +90,7 @@ class _DriverManageStopsState extends State<DriverManageStops> {
       // pickup = widget.busRouteModel!.startCords;
       // destination = widget.busRouteModel!.startCords;
       pickupMarker =
-          Marker(markerId: MarkerId("pickupLocation"), position: pickup!);
+          Marker(markerId: MarkerId("pickupLocation"), position: pickup!, infoWindow: InfoWindow(title: "pickupLocation"), icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen));
       destMarker =
           Marker(markerId: MarkerId("destLocation"), position: destination!);
 
@@ -116,6 +117,47 @@ class _DriverManageStopsState extends State<DriverManageStops> {
     }
 
     super.initState();
+  }
+
+
+  Future update() async {
+    
+    if (_formKey.currentState!.validate()) {
+      final busRoute = BusRouteModel(
+        id: id,
+        driverId: FirebaseAuth.instance.currentUser!.uid,
+        startTime: _startTimeController.text,
+        startLocation: _startLocationController.text,
+        endLocation: _endLocationController.text,
+        startCords: LatLng(pickup!.latitude, pickup!.longitude),
+        endCords: LatLng(destination!.latitude, destination!.longitude),
+        totalStops: totalStops,
+        stops: List.generate(totalStops, (index) {
+          return Stop(
+            stopName: _stopNameControllers[index].text,
+            time: _timeControllers[index].text,
+            stopLocation: _stopLocationControllers[index].text,
+            stopCords: LatLng(stops[index].latitude, stops[index].longitude),
+            isReached: false,
+          );
+        }),
+      );
+
+      try {
+        await FirebaseFirestore.instance
+            .collection('busRoutes')
+            .doc(FirebaseAuth.instance.currentUser!.uid)
+            .set(busRoute.toJson());
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Bus routes updated')),
+        );
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to update bus routes: $e')),
+        );
+      }
+    }
   }
 
   void updateTempMarker() {
@@ -204,45 +246,7 @@ class _DriverManageStopsState extends State<DriverManageStops> {
     super.dispose();
   }
 
-  Future update() async {
-    Random r = new Random();
-    if (_formKey.currentState!.validate()) {
-      final busRoute = BusRouteModel(
-        id: r.nextInt(256).toString(),
-        driverId: FirebaseAuth.instance.currentUser!.uid,
-        startTime: _startTimeController.text,
-        startLocation: _startLocationController.text,
-        endLocation: _endLocationController.text,
-        startCords: LatLng(pickup!.latitude, pickup!.longitude),
-        endCords: LatLng(destination!.latitude, destination!.longitude),
-        totalStops: totalStops,
-        stops: List.generate(totalStops, (index) {
-          return Stop(
-            stopName: _stopNameControllers[index].text,
-            time: _timeControllers[index].text,
-            stopLocation: _stopLocationControllers[index].text,
-            stopCords: LatLng(stops[index].latitude, stops[index].longitude),
-            isReached: false,
-          );
-        }),
-      );
-
-      try {
-        await FirebaseFirestore.instance
-            .collection('busRoutes')
-            .doc(FirebaseAuth.instance.currentUser!.uid)
-            .set(busRoute.toJson());
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Bus routes updated')),
-        );
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to update bus routes: $e')),
-        );
-      }
-    }
-  }
+  
 
   void getPickup() {
     LatLng? pickedLocation; // Variable to store the picked location
@@ -329,6 +333,7 @@ class _DriverManageStopsState extends State<DriverManageStops> {
                                       markerId: MarkerId('pickupLocation'),
                                       position: pickup!,
                                       draggable: true,
+                                      icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen)
                                     ),
                                   // Add marker for destination location
                                   if (destination != null)
@@ -385,6 +390,7 @@ class _DriverManageStopsState extends State<DriverManageStops> {
                             markerId: MarkerId('pickupLocation'),
                             position: pickup!,
                             draggable: true,
+                            icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen)
                           );
                         });
                         updateTempMarker();
@@ -819,16 +825,11 @@ class _DriverManageStopsState extends State<DriverManageStops> {
                     SizedBox(height: 10),
                     GestureDetector(
                       onTap: () async {
-                        print(
-                            "--------------------------------${totalMarkers}");
 
                         await update();
                         Navigator.of(context).pop();
 
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(builder: (_) => SplashScreen()),
-                        );
+                        
                       },
                       child: Container(
                         alignment: Alignment.center,
@@ -1024,9 +1025,26 @@ class _DriverManageStopsState extends State<DriverManageStops> {
                   alignment: Alignment.topLeft,
                   child: IconButton(
                     onPressed: () {
-                      if (Navigator.canPop(context)) {
-                        Navigator.pop(context);
-                      }
+                      Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => DriverMenuScreen(
+                        userId: auth.currentUser!.uid, busRouteModel: BusRouteModel(
+        id: id,
+        driverId: FirebaseAuth.instance.currentUser!.uid,
+        startTime: _startTimeController.text,
+        startLocation: _startLocationController.text,
+        endLocation: _endLocationController.text,
+        startCords: LatLng(pickup!.latitude, pickup!.longitude),
+        endCords: LatLng(destination!.latitude, destination!.longitude),
+        totalStops: totalStops,
+        stops: List.generate(totalStops, (index) {
+          return Stop(
+            stopName: _stopNameControllers[index].text,
+            time: _timeControllers[index].text,
+            stopLocation: _stopLocationControllers[index].text,
+            stopCords: LatLng(stops[index].latitude, stops[index].longitude),
+            isReached: false,
+          );
+        }),
+      )),));
                     },
                     icon: Icon(
                       Icons.arrow_back_ios,

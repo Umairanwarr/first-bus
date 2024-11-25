@@ -8,6 +8,7 @@ class UserModel {
   final String universityName;
   final String profileImageUrl;
   final String? licenseImageUrl;
+  final int? role;
 
   UserModel({
     required this.name,
@@ -19,24 +20,26 @@ class UserModel {
     required this.universityName,
     required this.profileImageUrl,
     this.licenseImageUrl,
+    this.role,
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
     return UserModel(
-      name: json['name'],
-      email: json['email'],
-      phone: json['phone'],
-      userType: json['userType'],
-      busNumber: json['busNumber'],
-      busColor: json['busColor'],
-      universityName: json['universityName'],
-      profileImageUrl: json['profileImageUrl'],
+      name: json['name'] ?? '',
+      email: json['email'] ?? '',
+      phone: json['phone'] ?? '',
+      userType: json['userType'] ?? '',
+      busNumber: json['busNumber'] ?? '',
+      busColor: json['busColor'] ?? '',
+      universityName: json['universityName'] ?? '',
+      profileImageUrl: json['profileImageUrl'] ?? '',
       licenseImageUrl: json['licenseImageUrl'],
+      role: json['role'] ?? 0,
     );
   }
 
   Map<String, dynamic> toJson() {
-    return {
+    final Map<String, dynamic> data = {
       'name': name,
       'email': email,
       'phone': phone,
@@ -47,6 +50,12 @@ class UserModel {
       'profileImageUrl': profileImageUrl,
       'licenseImageUrl': licenseImageUrl,
     };
+    
+    if (userType == 'Driver') {
+      data['role'] = role ?? 0;
+    }
+    
+    return data;
   }
 
   UserModel copyWith({
@@ -59,6 +68,7 @@ class UserModel {
     String? universityName,
     String? profileImageUrl,
     String? licenseImageUrl,
+    int? role,
   }) {
     return UserModel(
       name: name ?? this.name,
@@ -70,6 +80,7 @@ class UserModel {
       universityName: universityName ?? this.universityName,
       profileImageUrl: profileImageUrl ?? this.profileImageUrl,
       licenseImageUrl: licenseImageUrl ?? this.licenseImageUrl,
+      role: role ?? this.role,
     );
   }
 
@@ -84,6 +95,7 @@ class UserModel {
       universityName: data['universityName'],
       profileImageUrl: data['profileImageUrl'],
       licenseImageUrl: data['licenseImageUrl'],
+      role: data['role'] ?? 0,
     );
   }
 }

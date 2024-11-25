@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:first_bus_project/services/routes_services.dart';
@@ -27,8 +28,9 @@ class DriverMapScreen extends StatefulWidget {
 class _DriverMapScreenState extends State<DriverMapScreen> {
   GoogleMapController? mapController;
   LatLng? currentLocation;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   Marker? pickupMarker;
+  FirebaseAuth auth = FirebaseAuth.instance;
+  FirebaseFirestore _firestore = FirebaseFirestore.instance;
   Marker? destMarker;
   List<LatLng> allCords = [];
   List<bool> isRemember = [];
@@ -36,6 +38,9 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
   Set<Marker> totalMarkers = {};
   Set<Marker> stopMarkers = {};
   BusRouteModel? bus;
+  bool isOnline = false;
+  StreamSubscription<Position>? _locationSubscription;
+
   @override
   void initState() {
     super.initState();
@@ -72,6 +77,76 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
     totalMarkers.addAll(stopMarkers);
     totalMarkers.add(pickupMarker!);
     _getCurrentLocation();
+    _checkOnlineStatus();
+  }
+
+  @override
+  void dispose() {
+    _locationSubscription?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _checkOnlineStatus() async {
+    final doc = await _firestore
+        .collection('driverLocations')
+        .doc(auth.currentUser!.uid)
+        .get();
+    if (doc.exists) {
+      setState(() {
+        isOnline = doc.data()?['isOnline'] ?? false;
+      });
+      if (isOnline) {
+        _startLocationUpdates();
+      }
+    }
+  }
+
+  void _toggleOnlineStatus() async {
+    setState(() {
+      isOnline = !isOnline;
+    });
+
+    if (isOnline) {
+      _startLocationUpdates();
+    } else {
+      await _locationSubscription?.cancel();
+      _locationSubscription = null;
+
+      // Update driver status in Firestore
+      await _firestore
+          .collection('driverLocations')
+          .doc(auth.currentUser!.uid)
+          .update({
+        'isOnline': false,
+      });
+    }
+  }
+
+  void _startLocationUpdates() {
+    _locationSubscription = Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 10,
+      ),
+    ).listen((Position position) async {
+      final location = LatLng(position.latitude, position.longitude);
+      setState(() {
+        currentLocation = location;
+      });
+
+      // Update location in Firestore
+      await _firestore
+          .collection('driverLocations')
+          .doc(auth.currentUser!.uid)
+          .set({
+        'location': GeoPoint(position.latitude, position.longitude),
+        'lastUpdated': FieldValue.serverTimestamp(),
+        'driverId': auth.currentUser!.uid,
+        'busNumber': widget.userModel.busNumber,
+        'busColor': widget.userModel.busColor,
+        'isOnline': true,
+      });
+    });
   }
 
   final RoutesService _routesService = RoutesService();
@@ -142,13 +217,27 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
         automaticallyImplyLeading: false,
         title: const Text('Driver Map'),
         actions: [
+          // Online status button
+          TextButton.icon(
+            onPressed: _toggleOnlineStatus,
+            icon: Icon(
+              isOnline ? Icons.location_on : Icons.location_off,
+              color: isOnline ? Colors.green : Colors.red,
+            ),
+            label: Text(
+              isOnline ? 'Online' : 'Offline',
+              style: TextStyle(
+                color: isOnline ? Colors.green : Colors.red,
+              ),
+            ),
+          ),
           IconButton(
             onPressed: () {
               Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder: (_) => DriverMenuScreen(
-                    userModel: widget.userModel,
+                    userId: auth.currentUser!.uid,
                     busRouteModel: bus,
                   ),
                 ),
@@ -332,14 +421,186 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(10),
                 child: GoogleMap(
-                  onMapCreated: (GoogleMapController controller) async {
+                  onMapCreated: (GoogleMapController controller) {
                     setState(() {
                       mapController = controller;
+                      controller.setMapStyle('''
+[
+  {
+    "elementType": "geometry",
+    "stylers": [
+      {
+        "color": "#E8F3F1"
+      }
+    ]
+  },
+  {
+    "elementType": "labels.text.fill",
+    "stylers": [
+      {
+        "color": "#2D6660"
+      }
+    ]
+  },
+  {
+    "elementType": "labels.text.stroke",
+    "stylers": [
+      {
+        "color": "#ffffff"
+      }
+    ]
+  },
+  {
+    "featureType": "administrative",
+    "elementType": "geometry.stroke",
+    "stylers": [
+      {
+        "color": "#B5D8D3"
+      }
+    ]
+  },
+  {
+    "featureType": "administrative.land_parcel",
+    "elementType": "labels.text.fill",
+    "stylers": [
+      {
+        "color": "#489c94"
+      }
+    ]
+  },
+  {
+    "featureType": "poi",
+    "elementType": "geometry",
+    "stylers": [
+      {
+        "color": "#D4E9E6"
+      }
+    ]
+  },
+  {
+    "featureType": "poi.park",
+    "elementType": "geometry",
+    "stylers": [
+      {
+        "color": "#C2E6E1"
+      }
+    ]
+  },
+  {
+    "featureType": "poi.business",
+    "elementType": "geometry",
+    "stylers": [
+      {
+        "color": "#D4E9E6"
+      }
+    ]
+  },
+  {
+    "featureType": "poi",
+    "elementType": "labels.text.fill",
+    "stylers": [
+      {
+        "color": "#357871"
+      }
+    ]
+  },
+  {
+    "featureType": "road",
+    "elementType": "geometry",
+    "stylers": [
+      {
+        "color": "#ffffff"
+      }
+    ]
+  },
+  {
+    "featureType": "road",
+    "elementType": "geometry.stroke",
+    "stylers": [
+      {
+        "color": "#F8F9F9"
+      }
+    ]
+  },
+  {
+    "featureType": "road.highway",
+    "elementType": "geometry",
+    "stylers": [
+      {
+        "color": "#ffffff"
+      }
+    ]
+  },
+  {
+    "featureType": "road.highway",
+    "elementType": "geometry.stroke",
+    "stylers": [
+      {
+        "color": "#F8F9F9"
+      }
+    ]
+  },
+  {
+    "featureType": "road.arterial",
+    "elementType": "labels.text.fill",
+    "stylers": [
+      {
+        "color": "#357871"
+      }
+    ]
+  },
+  {
+    "featureType": "road.local",
+    "elementType": "labels.text.fill",
+    "stylers": [
+      {
+        "color": "#489c94"
+      }
+    ]
+  },
+  {
+    "featureType": "transit.line",
+    "elementType": "geometry",
+    "stylers": [
+      {
+        "color": "#D4E9E6"
+      }
+    ]
+  },
+  {
+    "featureType": "transit.station",
+    "elementType": "geometry",
+    "stylers": [
+      {
+        "color": "#D4E9E6"
+      }
+    ]
+  },
+  {
+    "featureType": "water",
+    "elementType": "geometry",
+    "stylers": [
+      {
+        "color": "#90CAF9"
+      }
+    ]
+  },
+  {
+    "featureType": "water",
+    "elementType": "labels.text.fill",
+    "stylers": [
+      {
+        "color": "#64B5F6"
+      }
+    ]
+  }
+]
+                      ''');
                     });
-                    await _getCurrentLocation();
-                    mapController?.animateCamera(
-                      CameraUpdate.newLatLngZoom(currentLocation!, 11),
-                    );
+                    if (currentLocation != null) {
+                      mapController?.animateCamera(
+                          CameraUpdate.newLatLngZoom(currentLocation!, 11));
+                    }
                   },
                   polylines: _createPolylines(),
                   markers: totalMarkers,

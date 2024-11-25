@@ -9,6 +9,7 @@ class CustomFields extends StatelessWidget {
     required this.isPassword,
     required this.keyboardType,
      this.icon,
+    this.onChanged,
   });
 
   final TextEditingController controller;
@@ -17,6 +18,7 @@ class CustomFields extends StatelessWidget {
   final bool isPassword;
   final TextInputType keyboardType;
   final Widget? icon;
+  final Function(String)? onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -40,6 +42,7 @@ class CustomFields extends StatelessWidget {
         ),
       ),
       validator: validator,
+      onChanged: onChanged,
     );
   }
 }
