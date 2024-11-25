@@ -214,7 +214,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
                     Icons.person,
                     color: Colors.grey,
                   ),
-                  isPassword: true,
+                  isPassword: false,
                   controller: _phoneController,
                   keyboardType: TextInputType.phone,
                   text: 'Phone',

@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:first_bus_project/models/route_model.dart';
 import 'package:first_bus_project/models/user_model.dart';
 import 'package:first_bus_project/services/routes_services.dart';
@@ -7,8 +6,8 @@ import 'package:first_bus_project/student/menu/student_menu.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:timeline_tile/timeline_tile.dart';
 import 'package:sliding_up_panel/sliding_up_panel.dart';
+import 'package:timeline_tile/timeline_tile.dart';
 
 class StudentRoute extends StatefulWidget {
   final String uid;
@@ -81,6 +80,7 @@ class _StudentRouteState extends State<StudentRoute> {
         title: "pickupLocation",
       ),
       position: pickup!,
+      icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen)
     );
     destMarker = Marker(
       markerId: MarkerId("destLocation"),
@@ -166,6 +166,15 @@ class _StudentRouteState extends State<StudentRoute> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: Icon(
+            Icons.arrow_back,
+            color: Colors.black,
+          ),
+          onPressed: () {
+            Navigator.pop(context);
+          },
+        ),
         title: Padding(
           padding: const EdgeInsets.only(top: 15.0),
           child: Column(
@@ -198,7 +207,6 @@ class _StudentRouteState extends State<StudentRoute> {
             ),
           )
         ],
-        automaticallyImplyLeading: false,
       ),
       body: isLoading
           ? Center(child: CircularProgressIndicator())

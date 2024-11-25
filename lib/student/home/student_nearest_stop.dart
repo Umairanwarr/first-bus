@@ -2,9 +2,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:first_bus_project/models/route_model.dart';
 import 'package:first_bus_project/models/user_model.dart';
 import 'package:first_bus_project/services/routes_services.dart';
-import 'package:first_bus_project/student/menu/student_menu.dart';
 import 'package:first_bus_project/student/student_route.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:sliding_up_panel/sliding_up_panel.dart';
@@ -111,6 +112,7 @@ class _StudentNearestState extends State<StudentNearest> {
         title: "pickupLocation",
       ),
       position: pickup!,
+      icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen)
     );
     destMarker = Marker(
       markerId: MarkerId("destLocation"),
@@ -204,24 +206,6 @@ class _StudentNearestState extends State<StudentNearest> {
             ],
           ),
         ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(top:15.0),
-            child: IconButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => StudentMenuScreen(
-                      userModel: widget.user,
-                    ),
-                  ),
-                );
-              },
-              icon: const Icon(Icons.person),
-            ),
-          )
-        ],
       ),
       body: Padding(
         padding: const EdgeInsets.only(top:10.0),
@@ -264,8 +248,44 @@ class _StudentNearestState extends State<StudentNearest> {
                                   Text("Nearest Stop",
                                       style: TextStyle(
                                           fontSize: 18, fontWeight: FontWeight.bold)),
-                                  Icon(Icons.share_location, size: 30, color: Color(0xFF419A95)),
-        
+                                  GestureDetector(
+                                    onTap: () async {
+                                      try {
+                                        // Get current location
+                                        Position position = await Geolocator.getCurrentPosition(
+                                          desiredAccuracy: LocationAccuracy.high,
+                                        );
+                                        
+                                        // Create Google Maps URL with current location
+                                        String googleMapsUrl = 'https://www.google.com/maps/search/?api=1&query=${position.latitude},${position.longitude}';
+                                        
+                                        // Copy to clipboard
+                                        await Clipboard.setData(ClipboardData(text: googleMapsUrl));
+                                        
+                                        // Show success message
+                                        Fluttertoast.showToast(
+                                          msg: "Location URL copied to clipboard",
+                                          toastLength: Toast.LENGTH_SHORT,
+                                          gravity: ToastGravity.BOTTOM,
+                                          backgroundColor: Color(0xFF419A95),
+                                          textColor: Colors.white,
+                                        );
+                                      } catch (e) {
+                                        // Show error message
+                                        Fluttertoast.showToast(
+                                          msg: "Failed to share location",
+                                          toastLength: Toast.LENGTH_SHORT,
+                                          gravity: ToastGravity.BOTTOM,
+                                          backgroundColor: Colors.red,
+                                          textColor: Colors.white,
+                                        );
+                                      }
+                                    },
+                                    child: Icon(Icons.share_location, 
+                                      size: 30, 
+                                      color: Color(0xFF419A95)
+                                    ),
+                                  ),
                                 ],
                               ),
                               Padding(

@@ -137,27 +137,6 @@ class AuthService {
 
       auth.User? firebaseUser = userCredential.user;
       if (firebaseUser != null) {
-        // Check if email is verified
-        if (!firebaseUser.emailVerified) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Please verify your email to log in.'),
-              action: SnackBarAction(
-                label: 'Resend Verification',
-                onPressed: () async {
-                  await firebaseUser.sendEmailVerification();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Verification email has been resent.'),
-                    ),
-                  );
-                },
-              ),
-            ),
-          );
-          return null;
-        }
-
         DocumentSnapshot userSnapshot =
             await _firestore.collection('users').doc(firebaseUser.uid).get();
 
@@ -167,28 +146,34 @@ class AuthService {
 
           if (userDataMap != null) {
             UserModel userData = UserModel.fromJson(userDataMap);
+            
+            if (userData.userType == 'Student') {
+              // Check email verification for students
+              if (!firebaseUser.emailVerified) {
+                await _firebaseAuth.signOut();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Please verify your email before logging in. Check your inbox.'),
+                  ),
+                );
+                return null;
+              }
+            } else if (userData.userType == 'Driver' && userData.role == 0) {
+              // Check role approval for drivers
+              await _firebaseAuth.signOut();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Your account is pending approval. Please wait for admin verification.'),
+                ),
+              );
+              return null;
+            }
+            
             return userData;
-          } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content:
-                    Text('User data is null or not in the expected format.'),
-              ),
-            );
-            return null;
           }
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('User data not found in Firestore.')),
-          );
-          return null;
         }
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Firebase user not found.')),
-        );
-        return null;
       }
+      return null;
     } on auth.FirebaseAuthException catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to login: $e')),
@@ -228,7 +213,8 @@ class AuthService {
       if (firebaseUser != null) {
         final userToUpdate = updatedUser.copyWith(
           profileImageUrl: profileImageUrl,
-          licenseImageUrl: licenseImageUrl, // Update license image URL
+          licenseImageUrl: licenseImageUrl, 
+          role:1// Update license image URL
         );
         await _firestore
             .collection('users')
@@ -272,6 +258,7 @@ class AuthService {
     required String password,
     required String selectedUniversity,
     required String profileImage,
+    required File? licenseImage,
   }) async {
     try {
       auth.UserCredential userCredential =
@@ -282,35 +269,87 @@ class AuthService {
 
       auth.User? firebaseUser = userCredential.user;
       if (firebaseUser != null) {
-        // Send verification email
-        await firebaseUser.sendEmailVerification();
+        if (userType == 'Student') {
+          // Send email verification for students
+          await firebaseUser.sendEmailVerification();
+          
+          UserModel newUser = UserModel(
+            name: name,
+            email: email,
+            phone: phone,
+            userType: userType,
+            busNumber: busNumber,
+            busColor: busStop,
+            universityName: selectedUniversity,
+            profileImageUrl: profileImage,
+          );
 
-        UserModel newUser = UserModel(
-          name: name,
-          email: email,
-          phone: phone,
-          userType: userType,
-          busNumber: busNumber,
-          busColor: busStop,
-          universityName: selectedUniversity,
-          profileImageUrl: profileImage,
-        );
+          await _firestore
+              .collection('users')
+              .doc(firebaseUser.uid)
+              .set(newUser.toJson());
 
-        await _firestore
-            .collection('users')
-            .doc(firebaseUser.uid)
-            .set(newUser.toJson());
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Account created! Please check your email for verification.'),
+            ),
+          );
+        } else if (userType == 'Driver') {
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text(
-                  'User signed up successfully. A verification email has been sent.')),
-        );
+          // Handle driver signup with role-based approval
+          String? licenseImageUrl;
+          if (licenseImage != null) {
+            
+            licenseImageUrl = await CommonFunctions.uploadImageToFirebase(
+              path: constLicenseImageCollection,
+              imageFile: licenseImage,
+              context: context,
+            );
+            await firebaseUser.sendEmailVerification();
+          }
+
+          UserModel newUser = UserModel(
+            name: name,
+            email: email,
+            phone: phone,
+            userType: userType,
+            busNumber: busNumber,
+            busColor: busStop,
+            universityName: selectedUniversity,
+            profileImageUrl: profileImage,
+            licenseImageUrl: licenseImageUrl,
+            role: 0, // Default role for unapproved drivers
+          );
+
+          await _firestore
+              .collection('users')
+              .doc(firebaseUser.uid)
+              .set(newUser.toJson());
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Please wait for admin approval to login.'),
+            ),
+          );
+        }
       }
     } on auth.FirebaseAuthException catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to sign up: $e')),
       );
     }
+  }
+
+  Future<void> studentSignUp({
+    required BuildContext context,
+    required String name,
+    required String email,
+    required String phone,
+    required String password,
+    required String busStop,
+    required String selectedUniversity,
+    String profileImage = '',
+  }) async {
+    // Implementation for student signup without license
   }
 }
